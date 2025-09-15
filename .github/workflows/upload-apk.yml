@@ -1,0 +1,57 @@
+name: Build and Upload APK to Beget S3
+
+on:
+  push:
+    tags:
+      - 'v*.*.*' # déclenche uniquement pour les tags commençant par "v", ex: v1.2.0
+  # Ou bien pour publier uniquement lors d'une release :
+  # release:
+  #   types: [published]
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.3' # ✅ corrigé (pas d’espace)
+          channel: 'stable'
+
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --release
+        # Output : build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Configure AWS credentials for Beget S3
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.BEGET_S3_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.BEGET_S3_SECRET_KEY }}
+          aws-region: ru-1 # région fictive, pas utilisé par Beget
+
+      - name: Upload APK to Beget S3
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          FILE=build/app/outputs/flutter-apk/app-release.apk
+          DEST=apk/my_app_v${VERSION:-latest}.apk
+
+          echo "Uploading $FILE to bucket..."
+          aws --endpoint-url ${{ secrets.BEGET_S3_ENDPOINT_URL }} \
+              s3 cp $FILE s3://${{ secrets.BEGET_S3_BUCKET_NAME }}/$DEST \
+              --acl public-read
+
+          echo "✅ APK uploaded to:"
+          echo "https://${{ secrets.BEGET_S3_BUCKET_NAME }}.${{ secrets.BEGET_S3_ENDPOINT_URL }}/$DEST"
