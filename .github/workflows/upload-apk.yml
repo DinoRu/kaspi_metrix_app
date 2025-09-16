@@ -45,17 +45,26 @@ jobs:
       - name: Move keystore into android/app
         run: |
           mkdir -p android/app
-          mv "${{ steps.android_keystore.outputs.filePath }}" android/app/upload-keystore.jks
+          mv "${{ steps.android_keystore.outputs.filePath }}" "android/app/upload-keystore.jks"
+          ls -la android/app
 
-      - name: Create key.properties file
+      - name: Create key.properties
         run: |
-          # Écrase le fichier pour éviter les doublons de lignes
           cat > android/key.properties <<'EOF'
           storePassword=${{ secrets.KEY_PASSWORD }}
           keyPassword=${{ secrets.KEY_PASSWORD }}
           keyAlias=${{ secrets.KEY_ALIAS }}
-          storeFile=../app/upload-keystore.jks
+          storeFile=upload-keystore.jks
           EOF
+          echo "== key.properties =="
+          cat android/key.properties
+
+      - name: Sanity check files
+        run: |
+          pwd
+          ls -la android
+          ls -la android/app
+          test -f android/app/upload-keystore.jks || (echo "Keystore missing" && exit 1)
 
       - name: Build APK
         run: flutter build apk --release
