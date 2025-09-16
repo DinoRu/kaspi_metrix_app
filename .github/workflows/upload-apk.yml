@@ -70,12 +70,17 @@ jobs:
         run: flutter build apk --release
         # Output : build/app/outputs/flutter-apk/app-release.apk
 
-      # - name: Configure AWS credentials for Beget S3
-      #   uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     aws-access-key-id: ${{ secrets.BEGET_S3_ACCESS_KEY }}
-      #     aws-secret-access-key: ${{ secrets.BEGET_S3_SECRET_KEY }}
-      #     aws-region: ${{ secrets.BEGET_S3_REGION }}
+      - name: Configure AWS CLI (S3-compatible)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BEGET_S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BEGET_S3_SECRET_KEY }}
+          AWS_EC2_METADATA_DISABLED: 'true'
+        run: |
+          aws --version
+          mkdir -p ~/.aws
+          aws configure set region ru-1
+          aws configure set s3.signature_version s3v4
+          aws configure set s3.addressing_style path
 
       - name: Upload APK to Beget S3 (s3api)
         env:
@@ -83,20 +88,22 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.BEGET_S3_SECRET_KEY }}
           AWS_DEFAULT_REGION: us-east-1
           AWS_EC2_METADATA_DISABLED: 'true'
-          ENDPOINT: ${{ secrets.BEGET_S3_ENDPOINT_URL }} # ex: https://s3.ru1.storage.beget.cloud
-          BUCKET: ${{ secrets.BEGET_S3_BUCKET_NAME }} # garde en secret, OK
+          ENDPOINT: ${{ secrets.BEGET_S3_ENDPOINT_URL }}
+          BUCKET: ${{ secrets.BEGET_S3_BUCKET_NAME }}
         run: |
-          set -e
+          set -euo pipefail
+          # retire un éventuel slash final (cause fréquente du bug)
+          ENDPOINT="${ENDPOINT%/}"
+
           VERSION=${GITHUB_REF_NAME#v}
           FILE=build/app/outputs/flutter-apk/app-release.apk
           DEST="apk/my_app_v${VERSION:-latest}.apk"
 
-          # Garde-fous pour éviter un endpoint vide (cause fréquente du NoneType)
           [ -n "$ENDPOINT" ] || { echo "ENDPOINT manquant"; exit 1; }
           [ -n "$BUCKET" ]   || { echo "BUCKET manquant"; exit 1; }
           [ -f "$FILE" ]     || { echo "APK introuvable: $FILE"; exit 1; }
 
-          echo "Uploading APK vers le bucket (clé: $DEST)…"
+          echo "Uploading → s3://$BUCKET/$DEST"
           aws s3api put-object \
             --bucket "$BUCKET" \
             --key "$DEST" \
@@ -105,5 +112,5 @@ jobs:
             --endpoint-url "$ENDPOINT"
 
           echo "✅ Upload OK"
-          echo "URL (path-style) : $ENDPOINT/$BUCKET/$DEST"
-          echo "URL (virtual-hosted si supporté) : https://$BUCKET.${ENDPOINT#https://}/$DEST"
+          echo "URL (path-style): $ENDPOINT/$BUCKET/$DEST"
+          echo "URL (virtual-hosted): https://$BUCKET.${ENDPOINT#https://}/$DEST"
