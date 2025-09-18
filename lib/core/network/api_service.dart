@@ -1,13 +1,12 @@
 import 'dart:developer';
 import 'dart:io';
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:metrix/config/constants.dart';
 import 'package:metrix/data/models/photo.dart';
 import 'package:mime/mime.dart';
 
 class ApiService {
-  static final String baseUrl = dotenv.env['BASE_URL']!;
+  static const String baseUrl = 'http://45.67.59.246';
   static final Dio _dio = Dio(
     BaseOptions(
       baseUrl: baseUrl,

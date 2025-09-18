@@ -85,7 +85,7 @@ class MetersPager extends AutoDisposeAsyncNotifier<List<Meter>> {
   bool get hasMore => _hasMore;
 
   Future<void> refreshAll() async {
-    state = const AsyncLoading();
+    // state = const AsyncLoading();
     _offset = 0;
     _hasMore = true;
     _loadingMore = false;

@@ -22,6 +22,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<User?>> {
   }
 
   Future<void> checkAuthStatus() async {
+    if (!mounted) return;
     try {
       final user = await _authRepository.getCurrentUser();
       state = AsyncValue.data(user);
