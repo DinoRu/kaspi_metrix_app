@@ -15,7 +15,7 @@ void main() async {
 
   await initializeDateFormatting('ru', null);
 
-  await dotenv.load(fileName: ".env");
+  // await dotenv.load(fileName: ".env");
 
   // Initialize database
   await DatabaseHelper.instance.database;
