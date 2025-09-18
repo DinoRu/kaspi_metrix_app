@@ -56,8 +56,8 @@ dependencies:
 
   cupertino_icons: ^1.0.8
   device_info_plus: ^11.5.0
-  install_plugin: ^2.1.0
   package_info_plus: ^9.0.0
+  open_filex: ^4.7.0
 
   flutter_dotenv: ^6.0.0
 

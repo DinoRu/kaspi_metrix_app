@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:install_plugin/install_plugin.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class UpdateDialog extends StatefulWidget {
   final String version;
@@ -19,6 +20,9 @@ class _UpdateDialogState extends State<UpdateDialog> {
 
   Future<void> _downloadAndInstall() async {
     try {
+      final status = await Permission.storage.request();
+      if (!status.isGranted) return;
+
       setState(() {
         downloading = true;
         progress = 0.0;
@@ -33,18 +37,15 @@ class _UpdateDialogState extends State<UpdateDialog> {
         savePath,
         onReceiveProgress: (count, total) {
           if (total != -1) {
-            setState(() {
-              progress = count / total;
-            });
+            setState(() => progress = count / total);
           }
         },
       );
 
       setState(() => downloading = false);
 
-      await InstallPlugin.installApk(savePath).catchError((e) {
-        debugPrint("Erreur install: $e");
-      });
+      // Ouvre le fichier APK → Android proposera l'installation
+      await OpenFilex.open(savePath);
     } catch (e) {
       setState(() => downloading = false);
       debugPrint("Erreur download/install: $e");
