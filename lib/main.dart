@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:metrix/app.dart';
 import 'package:metrix/core/database/database_helper.dart';
 import 'package:metrix/core/utils/connectivity_helper.dart';
+import 'package:metrix/core/utils/update_service.dart';
 
 final RouteObserver<ModalRoute<void>> routeObserver =
     RouteObserver<ModalRoute<void>>();
@@ -21,6 +22,9 @@ void main() async {
 
   // Initialize connectivity helper
   ConnectivityHelper.initialize();
+
+  // Initialiser flutter_downloader
+  await UpdateService.initialize();
 
   // Set system UI
   SystemChrome.setSystemUIOverlayStyle(
