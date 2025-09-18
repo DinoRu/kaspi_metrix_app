@@ -1,11 +1,7 @@
 // lib/widgets/update_dialog.dart
 
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:metrix/core/utils/update_service.dart';
 
 class UpdateDialog extends StatefulWidget {
   final String version;
@@ -18,209 +14,182 @@ class UpdateDialog extends StatefulWidget {
 }
 
 class _UpdateDialogState extends State<UpdateDialog> {
-  double progress = 0.0;
-  bool downloading = false;
-  String? errorMessage;
+  final UpdateService _updateService = UpdateService();
+
+  bool _downloading = false;
+  int _progress = 0;
+  String? _errorMessage;
+  bool _downloadStarted = false;
 
   @override
   void initState() {
     super.initState();
-    // Debug: afficher l'URL
-    debugPrint("APK URL: ${widget.apkUrl}");
+    _setupUpdateService();
   }
 
-  Future<void> _downloadAndInstall() async {
+  void _setupUpdateService() {
+    _updateService.registerCallback(
+      onProgress: (progress) {
+        if (mounted) {
+          setState(() {
+            _progress = progress;
+            _downloading = true;
+          });
+        }
+      },
+      onComplete: () {
+        if (mounted) {
+          setState(() {
+            _downloading = false;
+            _progress = 100;
+          });
+
+          // Fermer le dialog après installation
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) {
+              Navigator.of(context).pop();
+            }
+          });
+        }
+      },
+      onError: (error) {
+        if (mounted) {
+          setState(() {
+            _downloading = false;
+            _errorMessage = error;
+          });
+        }
+      },
+    );
+  }
+
+  Future<void> _startDownload() async {
     setState(() {
-      errorMessage = null;
-      downloading = true;
-      progress = 0.0;
+      _downloading = true;
+      _downloadStarted = true;
+      _errorMessage = null;
+      _progress = 0;
     });
 
-    try {
-      // 1. Vérifier et demander les permissions
-      if (Platform.isAndroid) {
-        // Pour Android 11+ (API 30+), on n'a plus besoin de WRITE_EXTERNAL_STORAGE
-        // mais on a besoin de REQUEST_INSTALL_PACKAGES
-        if (await Permission.requestInstallPackages.isDenied) {
-          await Permission.requestInstallPackages.request();
-        }
+    final success = await _updateService.downloadUpdate(
+      version: widget.version,
+      url: widget.apkUrl,
+    );
 
-        // Pour les anciennes versions d'Android
-        final sdkInt = await _getSdkInt();
-        if (sdkInt < 30) {
-          final storageStatus = await Permission.storage.request();
-          if (!storageStatus.isGranted) {
-            setState(() {
-              errorMessage = "Permission de stockage refusée";
-              downloading = false;
-            });
-            return;
-          }
-        }
-      }
-
-      // 2. Obtenir le répertoire de téléchargement approprié
-      Directory? dir;
-      if (Platform.isAndroid) {
-        // Utiliser le répertoire de téléchargements public
-        dir = await getExternalStorageDirectory();
-        dir ??= await getTemporaryDirectory();
-      } else {
-        dir = await getApplicationDocumentsDirectory();
-      }
-
-      // 3. Créer le chemin de sauvegarde
-      final fileName = "app_update_${widget.version}.apk";
-      final savePath = "${dir.path}/$fileName";
-
-      debugPrint("Téléchargement vers: $savePath");
-
-      // 4. Supprimer l'ancien fichier s'il existe
-      final file = File(savePath);
-      if (await file.exists()) {
-        await file.delete();
-      }
-
-      // 5. Configurer Dio avec timeout et headers
-      final dio = Dio(
-        BaseOptions(
-          connectTimeout: const Duration(seconds: 30),
-          receiveTimeout: const Duration(minutes: 5),
-          headers: {'Accept': '*/*', 'User-Agent': 'MeterSync/1.0'},
-        ),
-      );
-
-      // 6. Télécharger le fichier
-      final response = await dio.download(
-        widget.apkUrl,
-        savePath,
-        onReceiveProgress: (received, total) {
-          if (total != -1) {
-            setState(() {
-              progress = received / total;
-            });
-            debugPrint(
-              "Téléchargement: ${(progress * 100).toStringAsFixed(0)}%",
-            );
-          }
-        },
-        deleteOnError: true,
-      );
-
-      debugPrint("Téléchargement terminé, code: ${response.statusCode}");
-
-      // 7. Vérifier que le fichier existe et n'est pas vide
-      if (!await file.exists()) {
-        throw Exception("Le fichier téléchargé n'existe pas");
-      }
-
-      final fileSize = await file.length();
-      if (fileSize == 0) {
-        throw Exception("Le fichier téléchargé est vide");
-      }
-
-      debugPrint("Fichier téléchargé: $fileSize octets");
-
-      setState(() => downloading = false);
-
-      // 8. Ouvrir le fichier APK pour l'installation
-      final result = await OpenFilex.open(savePath);
-      debugPrint("Résultat de l'ouverture: ${result.message}");
-
-      if (result.type != ResultType.done) {
-        setState(() {
-          errorMessage = "Impossible d'ouvrir le fichier: ${result.message}";
-        });
-      }
-    } on DioException catch (e) {
-      debugPrint("Erreur Dio: ${e.message}");
-      debugPrint("Erreur response: ${e.response?.data}");
+    if (!success && mounted) {
       setState(() {
-        downloading = false;
-        errorMessage = _getErrorMessage(e);
-      });
-    } catch (e) {
-      debugPrint("Erreur générale: $e");
-      setState(() {
-        downloading = false;
-        errorMessage = "Erreur: $e";
+        _downloading = false;
+        _errorMessage = 'Impossible de démarrer le téléchargement';
       });
     }
   }
 
-  Future<int> _getSdkInt() async {
-    if (Platform.isAndroid) {
-      // Obtenir la version SDK Android
-      try {
-        final info = await Process.run('getprop', ['ro.build.version.sdk']);
-        return int.tryParse(info.stdout.toString().trim()) ?? 29;
-      } catch (e) {
-        return 29; // Valeur par défaut
-      }
-    }
-    return 0;
-  }
+  void _downloadInBackground() {
+    // Fermer le dialog mais continuer le téléchargement
+    Navigator.of(context).pop();
 
-  String _getErrorMessage(DioException error) {
-    switch (error.type) {
-      case DioExceptionType.connectionTimeout:
-        return "Délai de connexion dépassé";
-      case DioExceptionType.receiveTimeout:
-        return "Délai de téléchargement dépassé";
-      case DioExceptionType.badResponse:
-        return "Erreur serveur: ${error.response?.statusCode}";
-      case DioExceptionType.connectionError:
-        return "Erreur de connexion réseau";
-      default:
-        return error.message ?? "Erreur de téléchargement";
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Téléchargement en cours en arrière-plan...'),
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text("Mise à jour disponible"),
+      title: Row(
+        children: [
+          const Icon(Icons.system_update, color: Colors.blue),
+          const SizedBox(width: 8),
+          const Text('Mise à jour disponible'),
+        ],
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text("Nouvelle version ${widget.version} disponible"),
+          Text(
+            'Version ${widget.version} disponible',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 16),
 
-          if (downloading) ...[
-            LinearProgressIndicator(value: progress),
+          if (_downloading) ...[
+            LinearProgressIndicator(value: _progress / 100, minHeight: 6),
             const SizedBox(height: 8),
-            Text("${(progress * 100).toStringAsFixed(0)}%"),
-          ],
-
-          if (errorMessage != null) ...[
+            Text(
+              '$_progress%',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Téléchargement en cours...',
+              style: TextStyle(fontSize: 12),
+            ),
+          ] else if (_progress == 100) ...[
+            const Icon(Icons.check_circle, color: Colors.green, size: 48),
+            const SizedBox(height: 8),
+            const Text(
+              'Téléchargement terminé!\nInstallation en cours...',
+              textAlign: TextAlign.center,
+            ),
+          ] else if (_errorMessage != null) ...[
             const Icon(Icons.error_outline, color: Colors.red, size: 48),
             const SizedBox(height: 8),
             Text(
-              errorMessage!,
-              style: const TextStyle(color: Colors.red),
+              _errorMessage!,
+              style: const TextStyle(color: Colors.red, fontSize: 12),
+              textAlign: TextAlign.center,
+            ),
+          ] else ...[
+            const Icon(Icons.download, size: 48, color: Colors.blue),
+            const SizedBox(height: 8),
+            const Text(
+              'Une nouvelle version est disponible.\nVoulez-vous la télécharger maintenant?',
               textAlign: TextAlign.center,
             ),
           ],
-
-          if (!downloading && errorMessage == null)
-            const Text("Voulez-vous installer la nouvelle version ?"),
         ],
       ),
       actions: [
-        if (!downloading)
+        if (!_downloading && _progress != 100) ...[
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text("Plus tard"),
+            child: const Text('Plus tard'),
           ),
-        TextButton(
-          onPressed: downloading ? null : _downloadAndInstall,
-          child: Text(
-            downloading
-                ? "Téléchargement..."
-                : (errorMessage != null ? "Réessayer" : "Mettre à jour"),
+          if (_errorMessage != null)
+            TextButton(
+              onPressed: _startDownload,
+              child: const Text('Réessayer'),
+            )
+          else
+            ElevatedButton(
+              onPressed: _startDownload,
+              child: const Text('Télécharger'),
+            ),
+        ] else if (_downloading && _downloadStarted) ...[
+          TextButton(
+            onPressed: _downloadInBackground,
+            child: const Text('Continuer en arrière-plan'),
           ),
-        ),
+          TextButton(
+            onPressed: () {
+              _updateService.pauseDownload();
+              setState(() {
+                _downloading = false;
+              });
+            },
+            child: const Text('Pause'),
+          ),
+        ],
       ],
     );
+  }
+
+  @override
+  void dispose() {
+    _updateService.dispose();
+    super.dispose();
   }
 }
