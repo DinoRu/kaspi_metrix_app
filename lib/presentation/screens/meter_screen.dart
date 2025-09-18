@@ -81,7 +81,7 @@ class _MetersScreenState extends ConsumerState<MetersScreen> with RouteAware {
     try {
       final info = await PackageInfo.fromPlatform();
       final currentVersion = info.version;
-      print('Version: $currentVersion');
+      print('Version $currentVersion');
 
       final lastShownVersion = await _storage.read(
         key: 'last_shown_update_version',
