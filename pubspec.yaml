@@ -4,7 +4,7 @@ description: "Offline-first meter reading application"
 publish_to: 'none'
 
 
-version: 1.0.24
+version: 1.0.25
 
 environment:
   sdk: ^3.9.0
