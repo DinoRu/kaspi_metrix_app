@@ -22,7 +22,7 @@ class CustomSearchDelegate<T> extends SearchDelegate<T?> {
     this.hintText,
     this.showDivider = true,
   }) : super(
-         searchFieldLabel: hintText ?? 'Rechercher...',
+         searchFieldLabel: hintText ?? 'Поиск...',
          searchFieldStyle: const TextStyle(fontSize: 16),
        );
 
@@ -62,7 +62,7 @@ class CustomSearchDelegate<T> extends SearchDelegate<T?> {
               // Haptic feedback pour améliorer l'UX
               HapticFeedback.lightImpact();
             },
-            tooltip: 'Effacer',
+            tooltip: 'Очистить',
           ),
         ),
       ),
@@ -80,7 +80,7 @@ class CustomSearchDelegate<T> extends SearchDelegate<T?> {
         HapticFeedback.lightImpact();
         close(context, null);
       },
-      tooltip: 'Retour',
+      tooltip: 'Назад',
     );
   }
 
@@ -104,8 +104,8 @@ class CustomSearchDelegate<T> extends SearchDelegate<T?> {
       return _buildEmptyState(
         context,
         icon: Icons.search_rounded,
-        title: 'Commencez à taper pour rechercher',
-        subtitle: 'Recherchez dans ${list.length} éléments',
+        title: 'Начните вводить для поиска',
+        subtitle: 'Поиск среди ${list.length} элементов',
       );
     }
 
@@ -113,8 +113,8 @@ class CustomSearchDelegate<T> extends SearchDelegate<T?> {
       return _buildEmptyState(
         context,
         icon: Icons.search_off_rounded,
-        title: 'Aucun résultat trouvé',
-        subtitle: 'Essayez avec d\'autres mots-clés',
+        title: 'Результаты не найдены',
+        subtitle: 'Попробуйте другие ключевые слова',
       );
     }
 
@@ -384,12 +384,12 @@ class CustomSearchDelegate<T> extends SearchDelegate<T?> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Type non reconnu'),
+          content: const Text('Тип не распознан'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
-          action: SnackBarAction(label: 'OK', onPressed: () {}),
+          action: SnackBarAction(label: 'ОК', onPressed: () {}),
         ),
       );
     }
