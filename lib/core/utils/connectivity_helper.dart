@@ -27,7 +27,7 @@ class ConnectivityHelper {
           .checkConnectivity(); // Returns List<ConnectivityResult>
       _updateConnectionStatus(results);
     } catch (e) {
-      print('Error checking initial connectivity: $e');
+      // print('Error checking initial connectivity: $e');
       _isOnline = false;
     }
   }

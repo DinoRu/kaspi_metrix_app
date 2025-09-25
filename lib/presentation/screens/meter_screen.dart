@@ -222,7 +222,7 @@ class _MetersScreenState extends ConsumerState<MetersScreen> with RouteAware {
             onRefresh: _refreshAllMeters,
             child: ListView.builder(
               controller: _scrollCtrl,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
               itemCount: meterList.length + (hasMore ? 1 : 0),
               itemBuilder: (context, index) {
                 if (index >= meterList.length) {

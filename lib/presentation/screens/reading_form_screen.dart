@@ -511,7 +511,7 @@ class _ReadingFormScreenState extends ConsumerState<ReadingFormScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
           children: [
             Card(
               child: Padding(
@@ -877,7 +877,7 @@ class _ReadingFormScreenState extends ConsumerState<ReadingFormScreen> {
                 onPressed: _submitReading,
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 70),
           ],
         ),
       ),

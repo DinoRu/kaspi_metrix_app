@@ -1,5 +1,3 @@
-// lib/widgets/update_dialog.dart
-
 import 'package:flutter/material.dart';
 import 'package:metrix/core/utils/update_service.dart';
 
@@ -79,7 +77,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
     if (!success && mounted) {
       setState(() {
         _downloading = false;
-        _errorMessage = 'Impossible de démarrer le téléchargement';
+        _errorMessage = 'Не удалось начать загрузку';
       });
     }
   }
@@ -90,7 +88,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Téléchargement en cours en arrière-plan...'),
+        content: Text('Загрузка продолжается в фоновом режиме...'),
         duration: Duration(seconds: 3),
       ),
     );
@@ -103,14 +101,14 @@ class _UpdateDialogState extends State<UpdateDialog> {
         children: [
           const Icon(Icons.system_update, color: Colors.blue),
           const SizedBox(width: 8),
-          const Text('Mise à jour disponible'),
+          const Text('Доступно обновление'),
         ],
       ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Version ${widget.version} disponible',
+            'Версия ${widget.version} доступна',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
@@ -123,15 +121,12 @@ class _UpdateDialogState extends State<UpdateDialog> {
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Téléchargement en cours...',
-              style: TextStyle(fontSize: 12),
-            ),
+            const Text('Идёт загрузка...', style: TextStyle(fontSize: 12)),
           ] else if (_progress == 100) ...[
             const Icon(Icons.check_circle, color: Colors.green, size: 48),
             const SizedBox(height: 8),
             const Text(
-              'Téléchargement terminé!\nInstallation en cours...',
+              'Загрузка завершена!\nИдёт установка...',
               textAlign: TextAlign.center,
             ),
           ] else if (_errorMessage != null) ...[
@@ -146,7 +141,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
             const Icon(Icons.download, size: 48, color: Colors.blue),
             const SizedBox(height: 8),
             const Text(
-              'Une nouvelle version est disponible.\nVoulez-vous la télécharger maintenant?',
+              'Доступна новая версия.\nХотите загрузить её сейчас?',
               textAlign: TextAlign.center,
             ),
           ],
@@ -156,22 +151,22 @@ class _UpdateDialogState extends State<UpdateDialog> {
         if (!_downloading && _progress != 100) ...[
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Plus tard'),
+            child: const Text('Позже'),
           ),
           if (_errorMessage != null)
             TextButton(
               onPressed: _startDownload,
-              child: const Text('Réessayer'),
+              child: const Text('Повторить'),
             )
           else
             ElevatedButton(
               onPressed: _startDownload,
-              child: const Text('Télécharger'),
+              child: const Text('Загрузить'),
             ),
         ] else if (_downloading && _downloadStarted) ...[
           TextButton(
             onPressed: _downloadInBackground,
-            child: const Text('Continuer en arrière-plan'),
+            child: const Text('Продолжить в фоновом режиме'),
           ),
           TextButton(
             onPressed: () {
@@ -180,7 +175,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
                 _downloading = false;
               });
             },
-            child: const Text('Pause'),
+            child: const Text('Приостановить'),
           ),
         ],
       ],
