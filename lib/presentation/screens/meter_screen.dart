@@ -2,16 +2,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:metrix/config/constants.dart';
 import 'package:metrix/config/theme.dart';
-import 'package:metrix/core/network/api_client.dart';
+import 'package:metrix/core/services/update_checker.dart';
 import 'package:metrix/data/models/meter.dart';
 import 'package:metrix/presentation/providers/meter_provider.dart';
 import 'package:metrix/presentation/widgets/meter_search_delagate.dart';
 import 'package:metrix/widgets/custom_widgets.dart';
-import 'package:metrix/widgets/update_dialog.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 class MetersScreen extends ConsumerStatefulWidget {
   const MetersScreen({super.key});
@@ -23,11 +19,7 @@ class MetersScreen extends ConsumerStatefulWidget {
 class _MetersScreenState extends ConsumerState<MetersScreen> with RouteAware {
   final _scrollCtrl = ScrollController();
   bool _showScrollToTopButton = false;
-  final ApiClient _apiClient = ApiClient();
-
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
-
-  bool _hasCheckedUpdateThisSession = false;
+  final UpdateChecker _updateChecker = UpdateChecker();
 
   @override
   void initState() {
@@ -37,7 +29,8 @@ class _MetersScreenState extends ConsumerState<MetersScreen> with RouteAware {
     // Force un refresh à chaque fois qu'on arrive sur cet écran
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.invalidate(metersPagerProvider);
-      _checkAppUpdate();
+
+      _updateChecker.checkForUpdate(context: context);
     });
   }
 
@@ -73,59 +66,6 @@ class _MetersScreenState extends ConsumerState<MetersScreen> with RouteAware {
       curve: Curves.easeInOut,
     );
   } // instance de ton ApiClient
-
-  Future<void> _checkAppUpdate() async {
-    if (_hasCheckedUpdateThisSession) return; // déjà vérifié
-    _hasCheckedUpdateThisSession = true;
-
-    try {
-      final info = await PackageInfo.fromPlatform();
-      final currentVersion = info.version;
-      print('Version $currentVersion');
-
-      final lastShownVersion = await _storage.read(
-        key: 'last_shown_update_version',
-      );
-      if (lastShownVersion != null && lastShownVersion == currentVersion) {
-        // L'utilisateur a déjà vu le dialog pour cette version
-        return;
-      }
-
-      final response = await _apiClient.dio.get(ApiConstants.apkVersion);
-      if (response.statusCode == 200) {
-        final data = response.data;
-        final serverVersion = data['version'] as String;
-        final url = data['url'] as String;
-
-        if (_isNewer(serverVersion, currentVersion)) {
-          WidgetsBinding.instance.addPostFrameCallback((_) async {
-            await showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (_) => UpdateDialog(version: serverVersion, apkUrl: url),
-            );
-            // Stocker la version pour ne plus afficher ce dialog
-            await _storage.write(
-              key: 'last_shown_update_version',
-              value: serverVersion,
-            );
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint("Erreur check update: $e");
-    }
-  }
-
-  bool _isNewer(String server, String local) {
-    final s = server.split('.').map(int.parse).toList();
-    final l = local.split('.').map(int.parse).toList();
-    for (int i = 0; i < s.length; i++) {
-      if (s[i] > l[i]) return true;
-      if (s[i] < l[i]) return false;
-    }
-    return false;
-  }
 
   @override
   void dispose() {
