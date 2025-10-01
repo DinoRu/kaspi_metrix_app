@@ -18,9 +18,11 @@ class UpdateService {
 
   ReceivePort? _port;
   String? _currentTaskId;
+  String? _downloadedFilePath; // Stocker le chemin du fichier téléchargé
   Function(int)? _onProgress;
   Function()? _onComplete;
   Function(String)? _onError;
+  bool _autoInstallEnabled = false; // Contrôle de l'installation automatique
 
   // Initialiser le service (à appeler dans main())
   static Future<void> initialize() async {
@@ -30,15 +32,22 @@ class UpdateService {
     );
   }
 
+  // Configurer l'installation automatique
+  void setAutoInstall(bool enabled) {
+    _autoInstallEnabled = enabled;
+  }
+
   // Enregistrer le callback pour les mises à jour
   void registerCallback({
     Function(int)? onProgress,
     Function()? onComplete,
     Function(String)? onError,
+    bool autoInstall = false, // Paramètre optionnel pour l'auto-installation
   }) {
     _onProgress = onProgress;
     _onComplete = onComplete;
     _onError = onError;
+    _autoInstallEnabled = autoInstall;
 
     // Configurer le port de communication
     _port = ReceivePort();
@@ -49,9 +58,7 @@ class UpdateService {
       final DownloadTaskStatus status = DownloadTaskStatus.values[data[1]];
       final int progress = data[2];
 
-      debugPrint(
-        'Téléchargement: $taskId - Status: $status - Progress: $progress%',
-      );
+      debugPrint('Загрузка: $taskId - Статус: $status - Прогресс: $progress%');
 
       if (taskId == _currentTaskId) {
         _handleDownloadUpdate(status, progress);
@@ -76,21 +83,28 @@ class UpdateService {
         break;
 
       case DownloadTaskStatus.complete:
-        debugPrint('Téléchargement terminé');
+        debugPrint('Загрузка завершена');
+        _saveDownloadedFilePath(); // Sauvegarder le chemin du fichier
         _onComplete?.call();
-        _installApk();
+
+        // Installation automatique seulement si activée
+        if (_autoInstallEnabled) {
+          Future.delayed(const Duration(seconds: 1), () {
+            installUpdate();
+          });
+        }
         break;
 
       case DownloadTaskStatus.failed:
-        _onError?.call('Échec du téléchargement');
+        _onError?.call('Ошибка загрузки');
         break;
 
       case DownloadTaskStatus.canceled:
-        _onError?.call('Téléchargement annulé');
+        _onError?.call('Загрузка отменена');
         break;
 
       case DownloadTaskStatus.paused:
-        debugPrint('Téléchargement en pause');
+        debugPrint('Загрузка приостановлена');
         break;
 
       default:
@@ -98,16 +112,38 @@ class UpdateService {
     }
   }
 
+  // Sauvegarder le chemin du fichier téléchargé
+  Future<void> _saveDownloadedFilePath() async {
+    if (_currentTaskId == null) return;
+
+    try {
+      final tasks = await FlutterDownloader.loadTasksWithRawQuery(
+        query: "SELECT * FROM task WHERE task_id='$_currentTaskId'",
+      );
+
+      if (tasks != null && tasks.isNotEmpty) {
+        final task = tasks.first;
+        _downloadedFilePath = '${task.savedDir}/${task.filename}';
+        debugPrint('Файл сохранён: $_downloadedFilePath');
+      }
+    } catch (e) {
+      debugPrint('Ошибка при сохранении пути файла: $e');
+    }
+  }
+
   // Démarrer le téléchargement
   Future<bool> downloadUpdate({
     required String version,
     required String url,
+    bool autoInstall = false, // Paramètre optionnel
   }) async {
     try {
+      _autoInstallEnabled = autoInstall;
+
       // Vérifier les permissions
       final hasPermission = await _checkPermissions();
       if (!hasPermission) {
-        _onError?.call('Permissions refusées');
+        _onError?.call('Разрешения отклонены');
         return false;
       }
 
@@ -126,14 +162,14 @@ class UpdateService {
       }
 
       if (directory == null) {
-        _onError?.call('Impossible de trouver le dossier de téléchargement');
+        _onError?.call('Не удалось найти папку для загрузки');
         return false;
       }
 
       final savedDir = directory.path;
       final fileName = 'app_update_$version.apk';
 
-      debugPrint('Téléchargement vers: $savedDir/$fileName');
+      debugPrint('Загрузка в: $savedDir/$fileName');
       debugPrint('URL: $url');
 
       // Supprimer l'ancienne version si elle existe
@@ -154,8 +190,8 @@ class UpdateService {
 
       return _currentTaskId != null;
     } catch (e) {
-      debugPrint('Erreur lors du téléchargement: $e');
-      _onError?.call('Erreur: $e');
+      debugPrint('Ошибка при загрузке: $e');
+      _onError?.call('Ошибка: $e');
       return false;
     }
   }
@@ -187,8 +223,46 @@ class UpdateService {
     return true;
   }
 
-  // Installer l'APK téléchargé
-  Future<void> _installApk() async {
+  // Méthode publique pour installer l'APK
+  Future<void> installUpdate() async {
+    // Utiliser le chemin sauvegardé ou le récupérer
+    if (_downloadedFilePath != null) {
+      await _installApkFromPath(_downloadedFilePath!);
+    } else if (_currentTaskId != null) {
+      await _installApkFromTaskId();
+    } else {
+      _onError?.call('Файл обновления не найден');
+    }
+  }
+
+  // Installer l'APK depuis un chemin spécifique
+  Future<void> _installApkFromPath(String filePath) async {
+    try {
+      debugPrint('Установка: $filePath');
+
+      // Vérifier que le fichier existe
+      final file = File(filePath);
+      if (!await file.exists()) {
+        _onError?.call('Файл не найден: $filePath');
+        return;
+      }
+
+      // Ouvrir le fichier APK pour l'installation
+      final result = await OpenFilex.open(filePath);
+
+      if (result.type != ResultType.done) {
+        _onError?.call('Ошибка установки: ${result.message}');
+      } else {
+        debugPrint('Установка запущена успешно');
+      }
+    } catch (e) {
+      debugPrint('Ошибка при установке: $e');
+      _onError?.call('Ошибка установки: $e');
+    }
+  }
+
+  // Installer l'APK depuis l'ID de tâche
+  Future<void> _installApkFromTaskId() async {
     if (_currentTaskId == null) return;
 
     try {
@@ -198,24 +272,18 @@ class UpdateService {
       );
 
       if (tasks == null || tasks.isEmpty) {
-        _onError?.call('Fichier téléchargé introuvable');
+        _onError?.call('Загруженный файл не найден');
         return;
       }
 
       final task = tasks.first;
       final filePath = '${task.savedDir}/${task.filename}';
+      _downloadedFilePath = filePath; // Sauvegarder pour usage futur
 
-      debugPrint('Installation de: $filePath');
-
-      // Ouvrir le fichier APK pour l'installation
-      final result = await OpenFilex.open(filePath);
-
-      if (result.type != ResultType.done) {
-        _onError?.call('Erreur d\'installation: ${result.message}');
-      }
+      await _installApkFromPath(filePath);
     } catch (e) {
-      debugPrint('Erreur lors de l\'installation: $e');
-      _onError?.call('Erreur d\'installation: $e');
+      debugPrint('Ошибка при установке: $e');
+      _onError?.call('Ошибка установки: $e');
     }
   }
 
@@ -238,6 +306,8 @@ class UpdateService {
   Future<void> cancelDownload() async {
     if (_currentTaskId != null) {
       await FlutterDownloader.cancel(taskId: _currentTaskId!);
+      _currentTaskId = null;
+      _downloadedFilePath = null;
     }
   }
 
@@ -249,9 +319,35 @@ class UpdateService {
     }
   }
 
+  // Vérifier si un fichier de mise à jour existe
+  Future<bool> hasDownloadedUpdate() async {
+    if (_downloadedFilePath != null) {
+      final file = File(_downloadedFilePath!);
+      return await file.exists();
+    }
+    return false;
+  }
+
+  // Obtenir le pourcentage de progression actuel
+  int? getCurrentProgress() {
+    // Cette méthode pourrait être utile pour restaurer l'état
+    // Vous pourriez stocker la progression dans une variable membre
+    return null;
+  }
+
   // Nettoyer
   void dispose() {
     _port?.close();
     IsolateNameServer.removePortNameMapping(_portName);
+    _currentTaskId = null;
+    _downloadedFilePath = null;
+    _autoInstallEnabled = false;
+  }
+
+  // Réinitialiser le service (utile pour les tests)
+  void reset() {
+    _currentTaskId = null;
+    _downloadedFilePath = null;
+    _autoInstallEnabled = false;
   }
 }
