@@ -22,9 +22,9 @@ class ReadingsScreen extends ConsumerWidget {
       ref.invalidate(readingsProvider);
 
       // Si il y a des éléments en attente et qu'on est en ligne, synchroniser
-      if (syncInfo.hasPendingItems && !syncInfo.isOffline) {
-        await ref.read(manualSyncProvider.future);
-      }
+      // if (syncInfo.hasPendingItems && !syncInfo.isOffline) {
+      //   await ref.read(manualSyncProvider.future);
+      // }
     }
 
     return Scaffold(
@@ -32,10 +32,7 @@ class ReadingsScreen extends ConsumerWidget {
         title: const Text('Показания'),
         actions: [
           // Indicateur de statut dans l'AppBar
-          const Padding(
-            padding: EdgeInsets.only(right: 12),
-            child: SyncStatusIcon(),
-          ),
+          const Padding(padding: EdgeInsets.only(right: 12), child: SyncStatusIcon()),
         ],
       ),
       body: SyncStatusWrapper(
@@ -47,18 +44,11 @@ class ReadingsScreen extends ConsumerWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      Icons.article_outlined,
-                      size: 80,
-                      color: MeterSyncTheme.textTertiaryLight,
-                    ),
+                    Icon(Icons.article_outlined, size: 80, color: MeterSyncTheme.textTertiaryLight),
                     const SizedBox(height: 16),
-                    Text(
-                      'Показания отсутствуют',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
+                    Text('Показания отсутствуют', style: Theme.of(context).textTheme.titleLarge),
                     const SizedBox(height: 8),
-                    const Text('Нажмите + для добавления первого показания'),
+                    // const Text('Нажмите + для добавления первого показания'),
                   ],
                 ),
               );
@@ -67,10 +57,7 @@ class ReadingsScreen extends ConsumerWidget {
             return RefreshIndicator(
               onRefresh: handleRefresh,
               child: ListView.builder(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 16,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
                 itemCount: readingList.length,
                 itemBuilder: (context, index) {
                   final reading = readingList[index];
@@ -83,8 +70,7 @@ class ReadingsScreen extends ConsumerWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) =>
-                                ReadingDetailScreen(reading: reading),
+                            builder: (context) => ReadingDetailScreen(reading: reading),
                           ),
                         );
                       },
@@ -127,9 +113,7 @@ class ReadingsScreen extends ConsumerWidget {
                                 fontStyle: FontStyle.italic,
                               ),
                             ),
-                          if (!isSynced &&
-                              !syncInfo.isOffline &&
-                              !syncInfo.isSyncing)
+                          if (!isSynced && !syncInfo.isOffline && !syncInfo.isSyncing)
                             Text(
                               'Ожидает синхронизации',
                               style: TextStyle(
@@ -138,8 +122,7 @@ class ReadingsScreen extends ConsumerWidget {
                                 fontStyle: FontStyle.italic,
                               ),
                             ),
-                          if (reading.notes != null &&
-                              reading.notes!.isNotEmpty)
+                          if (reading.notes != null && reading.notes!.isNotEmpty)
                             Text(
                               'Заметки: ${reading.notes}',
                               style: Theme.of(context).textTheme.bodySmall,
@@ -150,24 +133,15 @@ class ReadingsScreen extends ConsumerWidget {
                       ),
                       trailing: reading.photos.isNotEmpty
                           ? Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color: MeterSyncTheme.primaryGreen.withOpacity(
-                                  0.1,
-                                ),
+                                color: MeterSyncTheme.primaryGreen.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(
-                                    Icons.photo,
-                                    size: 16,
-                                    color: MeterSyncTheme.primaryGreen,
-                                  ),
+                                  Icon(Icons.photo, size: 16, color: MeterSyncTheme.primaryGreen),
                                   const SizedBox(width: 4),
                                   Text(
                                     '${reading.photos.length}',

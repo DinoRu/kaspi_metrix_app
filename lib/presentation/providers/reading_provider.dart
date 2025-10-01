@@ -7,10 +7,7 @@ final readingRepositoryProvider = Provider((ref) {
   return ReadingRepository(ref.watch(apiClientProvider));
 });
 
-final readingsProvider = FutureProvider.family<List<Reading>, String?>((
-  ref,
-  meterId,
-) async {
+final readingsProvider = FutureProvider.family<List<Reading>, String?>((ref, meterId) async {
   final repository = ref.watch(readingRepositoryProvider);
   return repository.getReadings(meterId: meterId);
 });
@@ -28,10 +25,9 @@ final totalReadingCountProvider = FutureProvider<int>((ref) {
   return ref.read(readingRepositoryProvider).getTotalReadingsCount();
 });
 
-final syncStatusProvider =
-    StateNotifierProvider<SyncStatusNotifier, SyncStatus>((ref) {
-      return SyncStatusNotifier(ref.watch(readingRepositoryProvider));
-    });
+final syncStatusProvider = StateNotifierProvider<SyncStatusNotifier, SyncStatus>((ref) {
+  return SyncStatusNotifier(ref.watch(readingRepositoryProvider));
+});
 
 enum SyncStatus { idle, syncing, success, error }
 

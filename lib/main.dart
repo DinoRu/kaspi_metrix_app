@@ -8,8 +8,7 @@ import 'package:metrix/core/services/update_checker.dart';
 import 'package:metrix/core/utils/connectivity_helper.dart';
 import 'package:metrix/core/utils/update_service.dart';
 
-final RouteObserver<ModalRoute<void>> routeObserver =
-    RouteObserver<ModalRoute<void>>();
+final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -33,12 +32,12 @@ void main() async {
   await UpdateChecker().initialize();
 
   // Set system UI
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ),
-  );
+  // SystemChrome.setSystemUIOverlayStyle(
+  //   const SystemUiOverlayStyle(
+  //     statusBarColor: Colors.transparent,
+  //     statusBarIconBrightness: Brightness.dark,
+  //   ),
+  // );
 
   runApp(const ProviderScope(child: MeterSyncApp()));
 }
