@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:metrix/core/services/sync_manager.dart';
 import 'package:metrix/core/services/update_checker.dart';
@@ -121,8 +122,26 @@ class _MeterSyncAppState extends ConsumerState<MeterSyncApp>
     }
   }
 
+  void _setSystemUI(BuildContext context) {
+    final theme = Theme.of(context);
+
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: theme.brightness == Brightness.dark
+            ? Brightness.light
+            : Brightness.dark,
+        systemNavigationBarColor: theme.colorScheme.surface,
+        systemNavigationBarIconBrightness: theme.brightness == Brightness.dark
+            ? Brightness.light
+            : Brightness.dark,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    _setSystemUI(context);
     // Écouter les changements d'authentification pour gérer le SyncManager
     ref.listen(authStateProvider, (previous, next) {
       if (previous?.value == null && next.value != null) {
