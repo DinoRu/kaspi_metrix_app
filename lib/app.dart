@@ -17,8 +17,7 @@ class MeterSyncApp extends ConsumerStatefulWidget {
   ConsumerState<MeterSyncApp> createState() => _MeterSyncAppState();
 }
 
-class _MeterSyncAppState extends ConsumerState<MeterSyncApp>
-    with WidgetsBindingObserver {
+class _MeterSyncAppState extends ConsumerState<MeterSyncApp> with WidgetsBindingObserver {
   final UpdateChecker _updateChecker = UpdateChecker();
   final SyncManager _syncManager = SyncManager();
   bool _isSyncManagerInitialized = false;
@@ -96,9 +95,7 @@ class _MeterSyncAppState extends ConsumerState<MeterSyncApp>
         debugPrint('App paused');
         // Possibilité de forcer une sync avant la mise en pause
         if (_isSyncManagerInitialized && _syncManager.pendingItemsCount > 0) {
-          debugPrint(
-            'App pausing with ${_syncManager.pendingItemsCount} pending items',
-          );
+          debugPrint('App pausing with ${_syncManager.pendingItemsCount} pending items');
           _syncManager.syncNow();
         }
         break;
@@ -131,7 +128,7 @@ class _MeterSyncAppState extends ConsumerState<MeterSyncApp>
         statusBarIconBrightness: theme.brightness == Brightness.dark
             ? Brightness.light
             : Brightness.dark,
-        systemNavigationBarColor: theme.colorScheme.surface,
+        systemNavigationBarColor: Colors.white,
         systemNavigationBarIconBrightness: theme.brightness == Brightness.dark
             ? Brightness.light
             : Brightness.dark,
