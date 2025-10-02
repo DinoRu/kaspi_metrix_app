@@ -8,9 +8,25 @@ import 'package:metrix/core/services/update_checker.dart';
 import 'package:metrix/core/utils/connectivity_helper.dart';
 import 'package:metrix/core/utils/update_service.dart';
 
-final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
+final RouteObserver<ModalRoute<void>> routeObserver =
+    RouteObserver<ModalRoute<void>>();
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+void setSystemUIOverlayStyle(Brightness brightness, Color navBarColor) {
+  SystemChrome.setSystemUIOverlayStyle(
+    SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent, // status bar transparente
+      statusBarIconBrightness: brightness == Brightness.dark
+          ? Brightness.light
+          : Brightness.dark,
+      systemNavigationBarColor: navBarColor, // couleur de la barre navigation
+      systemNavigationBarIconBrightness: brightness == Brightness.dark
+          ? Brightness.light
+          : Brightness.dark,
+    ),
+  );
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,12 +48,10 @@ void main() async {
   await UpdateChecker().initialize();
 
   // Set system UI
-  // SystemChrome.setSystemUIOverlayStyle(
-  //   const SystemUiOverlayStyle(
-  //     statusBarColor: Colors.transparent,
-  //     statusBarIconBrightness: Brightness.dark,
-  //   ),
-  // );
+  SystemUiOverlayStyle(
+    statusBarBrightness: Brightness.light,
+    statusBarColor: Colors.white,
+  );
 
   runApp(const ProviderScope(child: MeterSyncApp()));
 }
