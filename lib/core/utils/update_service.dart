@@ -44,46 +44,98 @@ class UpdateService {
     Function(String)? onError,
     bool autoInstall = false, // Paramètre optionnel pour l'auto-installation
   }) {
+    debugPrint('Service: Registering callbacks'); // Debug
+
     _onProgress = onProgress;
     _onComplete = onComplete;
     _onError = onError;
     _autoInstallEnabled = autoInstall;
 
-    // Configurer le port de communication
+    // Supprimer l'ancien port s'il existe
+    if (_port != null) {
+      _port!.close();
+      IsolateNameServer.removePortNameMapping(_portName);
+    }
+
+    // Configurer le nouveau port de communication
     _port = ReceivePort();
-    IsolateNameServer.registerPortWithName(_port!.sendPort, _portName);
+    bool registered = IsolateNameServer.registerPortWithName(
+      _port!.sendPort,
+      _portName,
+    );
+
+    if (!registered) {
+      debugPrint(
+        'Service: Port already registered, removing and re-registering',
+      );
+      IsolateNameServer.removePortNameMapping(_portName);
+      IsolateNameServer.registerPortWithName(_port!.sendPort, _portName);
+    }
 
     _port!.listen((dynamic data) {
-      final String taskId = data[0];
-      final DownloadTaskStatus status = DownloadTaskStatus.values[data[1]];
-      final int progress = data[2];
+      debugPrint('Service: Received data from isolate: $data'); // Debug
 
-      debugPrint('Загрузка: $taskId - Статус: $status - Прогресс: $progress%');
+      if (data is List && data.length >= 3) {
+        final String taskId = data[0];
+        final int statusIndex = data[1];
+        final int progress = data[2];
 
-      if (taskId == _currentTaskId) {
-        _handleDownloadUpdate(status, progress);
+        final DownloadTaskStatus status =
+            DownloadTaskStatus.values[statusIndex];
+
+        debugPrint(
+          'Загрузка: TaskID=$taskId - Статус=$status - Прогресс=$progress%',
+        );
+
+        if (taskId == _currentTaskId) {
+          _handleDownloadUpdate(status, progress);
+        }
+      } else {
+        debugPrint('Service: Invalid data format received: $data');
       }
     });
 
     // Enregistrer le callback statique
     FlutterDownloader.registerCallback(downloadCallback);
+
+    debugPrint('Service: Callbacks registered successfully');
   }
 
   // Callback statique pour l'isolate
   @pragma('vm:entry-point')
   static void downloadCallback(String id, int status, int progress) {
+    debugPrint(
+      'Static callback: id=$id, status=$status, progress=$progress',
+    ); // Debug
+
     final SendPort? send = IsolateNameServer.lookupPortByName(_portName);
-    send?.send([id, status, progress]);
+    if (send != null) {
+      send.send([id, status, progress]);
+      debugPrint('Static callback: Data sent to port successfully');
+    } else {
+      debugPrint('Static callback: Port not found! Unable to send progress');
+    }
   }
 
   void _handleDownloadUpdate(DownloadTaskStatus status, int progress) {
+    debugPrint(
+      'Service: Status = $status, Progress = $progress%',
+    ); // Debug plus détaillé
+
     switch (status) {
+      case DownloadTaskStatus.enqueued:
+        debugPrint('Загрузка добавлена в очередь');
+        _onProgress?.call(0);
+        break;
+
       case DownloadTaskStatus.running:
+        debugPrint('Service: Calling onProgress with $progress'); // Debug
         _onProgress?.call(progress);
         break;
 
       case DownloadTaskStatus.complete:
         debugPrint('Загрузка завершена');
+        _onProgress?.call(100); // S'assurer que 100% est envoyé
         _saveDownloadedFilePath(); // Sauvegarder le chemin du fichier
         _onComplete?.call();
 
@@ -96,10 +148,12 @@ class UpdateService {
         break;
 
       case DownloadTaskStatus.failed:
+        debugPrint('Загрузка не удалась');
         _onError?.call('Ошибка загрузки');
         break;
 
       case DownloadTaskStatus.canceled:
+        debugPrint('Загрузка отменена');
         _onError?.call('Загрузка отменена');
         break;
 
@@ -107,7 +161,8 @@ class UpdateService {
         debugPrint('Загрузка приостановлена');
         break;
 
-      default:
+      case DownloadTaskStatus.undefined:
+        debugPrint('Неопределённый статус загрузки');
         break;
     }
   }
@@ -139,6 +194,13 @@ class UpdateService {
   }) async {
     try {
       _autoInstallEnabled = autoInstall;
+
+      debugPrint('Service: Starting download with autoInstall=$autoInstall');
+
+      // S'assurer que les callbacks sont enregistrés
+      if (_onProgress == null) {
+        debugPrint('Service: WARNING - No progress callback registered!');
+      }
 
       // Vérifier les permissions
       final hasPermission = await _checkPermissions();
@@ -176,6 +238,7 @@ class UpdateService {
       final oldFile = File('$savedDir/$fileName');
       if (await oldFile.exists()) {
         await oldFile.delete();
+        debugPrint('Service: Old file deleted');
       }
 
       // Lancer le téléchargement
@@ -187,6 +250,8 @@ class UpdateService {
         openFileFromNotification: false, // On gère nous-même l'ouverture
         saveInPublicStorage: true, // Sauvegarder dans le stockage public
       );
+
+      debugPrint('Service: Download task created with ID: $_currentTaskId');
 
       return _currentTaskId != null;
     } catch (e) {

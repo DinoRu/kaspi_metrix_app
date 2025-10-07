@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:metrix/core/utils/update_service.dart';
+import 'dart:async'; // Pour Timer (debug)
 
 class UpdateDialog extends StatefulWidget {
   final String version;
@@ -23,35 +24,65 @@ class _UpdateDialogState extends State<UpdateDialog> {
   bool _downloading = false;
   bool _downloadComplete = false;
   bool _installing = false;
-  int _progress = 0;
+  bool _isPaused = false; // Nouveau: état de pause
+  double _progress = 0.0; // Utiliser double pour plus de précision
   String? _errorMessage;
   bool _downloadStarted = false;
   bool _autoInstallEnabled = false; // Предпочтение пользователя
+
+  bool _leaveRunningInBackground = false;
 
   @override
   void initState() {
     super.initState();
     _autoInstallEnabled = widget.autoInstall;
     _setupUpdateService();
+
+    // Test de débogage (à commenter en production)
+    // _testProgressSimulation();
+  }
+
+  // Méthode de test pour simuler la progression (débogage uniquement)
+  void _testProgressSimulation() {
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted && _downloading) {
+        Timer.periodic(const Duration(milliseconds: 500), (timer) {
+          if (!mounted || !_downloading || _downloadComplete) {
+            timer.cancel();
+            return;
+          }
+          setState(() {
+            _progress = (_progress + 5).clamp(0, 100);
+            if (_progress >= 100) {
+              _downloading = false;
+              _downloadComplete = true;
+              timer.cancel();
+            }
+          });
+        });
+      }
+    });
   }
 
   void _setupUpdateService() {
     _updateService.registerCallback(
       onProgress: (progress) {
+        debugPrint('Dialog: Progress update received: $progress%'); // Debug
         if (mounted) {
           setState(() {
-            _progress = progress;
+            _progress = progress.toDouble();
             _downloading = true;
             _downloadComplete = false;
           });
         }
       },
       onComplete: () async {
+        debugPrint('Dialog: Download complete'); // Debug
         if (mounted) {
           setState(() {
             _downloading = false;
             _downloadComplete = true;
-            _progress = 100;
+            _progress = 100.0;
           });
 
           // Si l'installation automatique est activée
@@ -75,6 +106,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
         }
       },
       onError: (error) {
+        debugPrint('Dialog: Error received: $error'); // Debug
         if (mounted) {
           setState(() {
             _downloading = false;
@@ -89,12 +121,13 @@ class _UpdateDialogState extends State<UpdateDialog> {
   }
 
   Future<void> _startDownload() async {
+    debugPrint('Dialog: Starting download...'); // Debug
     setState(() {
       _downloading = true;
       _downloadStarted = true;
       _downloadComplete = false;
       _errorMessage = null;
-      _progress = 0;
+      _progress = 0.0;
     });
 
     // Mettre à jour l'état d'auto-installation dans le service
@@ -123,15 +156,13 @@ class _UpdateDialogState extends State<UpdateDialog> {
     await _updateService.installUpdate();
 
     // Закрыть диалог после запуска установки
+    await Future.delayed(const Duration(seconds: 1));
     if (mounted) {
       Navigator.of(context).pop();
     }
   }
 
   void _downloadInBackground() {
-    // Закрыть диалог, но продолжить загрузку
-    Navigator.of(context).pop();
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -142,6 +173,38 @@ class _UpdateDialogState extends State<UpdateDialog> {
         duration: const Duration(seconds: 3),
       ),
     );
+
+    _leaveRunningInBackground = true;
+    // Закрыть диалог, но продолжить загрузку
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _pauseDownload() async {
+    try {
+      await _updateService.pauseDownload();
+      setState(() {
+        _isPaused = true;
+        _downloading = false;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('невозможно выполнить паузу')),
+      );
+    }
+  }
+
+  Future<void> _resumeDownload() async {
+    try {
+      await _updateService.resumeDownload();
+      setState(() {
+        _isPaused = false;
+        _downloading = true;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Невозможно возобновить')));
+    }
   }
 
   @override
@@ -152,8 +215,12 @@ class _UpdateDialogState extends State<UpdateDialog> {
           Icon(
             _downloadComplete
                 ? Icons.check_circle
-                : (_installing ? Icons.install_mobile : Icons.system_update),
-            color: _downloadComplete ? Colors.green : Colors.blue,
+                : (_installing
+                      ? Icons.install_mobile
+                      : (_isPaused ? Icons.pause_circle : Icons.system_update)),
+            color: _downloadComplete
+                ? Colors.green
+                : (_isPaused ? Colors.orange : Colors.blue),
           ),
           const SizedBox(width: 8),
           Text(
@@ -161,7 +228,9 @@ class _UpdateDialogState extends State<UpdateDialog> {
                 ? 'Установка...'
                 : (_downloadComplete
                       ? 'Загрузка завершена'
-                      : 'Доступно обновление'),
+                      : (_isPaused
+                            ? 'Загрузка на паузе'
+                            : 'Доступно обновление')),
           ),
         ],
       ),
@@ -185,38 +254,63 @@ class _UpdateDialogState extends State<UpdateDialog> {
               style: TextStyle(fontSize: 14),
             ),
           ]
-          // Состояние: Загрузка
-          else if (_downloading) ...[
-            LinearProgressIndicator(
-              value: _progress / 100,
-              minHeight: 8,
-              backgroundColor: Colors.grey[300],
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+          // Состояние: Загрузка (или пауза)
+          else if (_downloading || _isPaused) ...[
+            Column(
               children: [
-                Text(
-                  '$_progress%',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue,
+                LinearProgressIndicator(
+                  value: _progress > 0
+                      ? _progress / 100
+                      : null, // null pour indeterminate si 0
+                  minHeight: 8,
+                  backgroundColor: Colors.grey[300],
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    _isPaused ? Colors.orange : Colors.blue,
                   ),
                 ),
-                const SizedBox(width: 8),
-                const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (_isPaused)
+                      const Icon(
+                        Icons.pause_circle_filled,
+                        color: Colors.orange,
+                        size: 30,
+                      ),
+                    if (_isPaused) const SizedBox(width: 8),
+                    Text(
+                      '${_progress.toInt()}%',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: _isPaused ? Colors.orange : Colors.blue,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (!_isPaused &&
+                        _progress ==
+                            0) // Montrer le spinner seulement si pas en pause et pas de progrès
+                      const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _isPaused
+                      ? 'Загрузка приостановлена'
+                      : (_progress > 0
+                            ? 'Загружено: ${_progress.toInt()}%'
+                            : 'Подготовка к загрузке...'),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: _isPaused ? Colors.orange : Colors.grey,
+                  ),
                 ),
               ],
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Идёт загрузка...',
-              style: TextStyle(fontSize: 14, color: Colors.grey),
             ),
             const SizedBox(height: 16),
             // Чекбокс для автоматической установки во время загрузки
@@ -339,20 +433,17 @@ class _UpdateDialogState extends State<UpdateDialog> {
         // Кнопки в зависимости от состояния
         if (_installing) ...[
           // Нет кнопок во время установки
-        ] else if (_downloading) ...[
+        ] else if (_downloading || _isPaused) ...[
           TextButton(
             onPressed: _downloadInBackground,
             child: const Text('В фоне'),
           ),
           TextButton(
-            onPressed: () {
-              _updateService.pauseDownload();
-              setState(() {
-                _downloading = false;
-                _downloadStarted = false;
-              });
-            },
-            child: const Text('Пауза', style: TextStyle(color: Colors.orange)),
+            onPressed: _isPaused ? _resumeDownload : _pauseDownload,
+            child: Text(
+              _isPaused ? 'Продолжить' : 'Пауза',
+              style: TextStyle(color: _isPaused ? Colors.green : Colors.orange),
+            ),
           ),
         ] else if (_downloadComplete && !_autoInstallEnabled) ...[
           TextButton(
@@ -401,7 +492,11 @@ class _UpdateDialogState extends State<UpdateDialog> {
 
   @override
   void dispose() {
-    _updateService.dispose();
+    // Annuler le téléchargement si en cours
+    if (!_leaveRunningInBackground && _downloading && !_downloadComplete) {
+      _updateService.cancelDownload();
+    }
+    // _updateService.dispose();
     super.dispose();
   }
 }
